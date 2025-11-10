@@ -1,0 +1,28 @@
+{
+  "name": "testgenie",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start:backend": "backend\\start.bat",
+    "install:frontend": "cd frontend && npm install",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build:frontend": "cd frontend && npm run build",
+    "start:frontend": "cd frontend && npm start",
+    "lint:frontend": "cd frontend && npm run lint",
+    "kill:ports": "netstat -ano | findstr :3000 && for /f \"tokens=5\" %a in ('netstat -ano ^| findstr :3000') do taskkill /PID %a /F & netstat -ano | findstr :5000 && for /f \"tokens=5\" %a in ('netstat -ano ^| findstr :5000') do taskkill /PID %a /F",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up",
+    "docker:up:build": "docker-compose up --build",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "docker:restart": "docker-compose restart",
+    "docker:clean": "docker-compose down -v --rmi all",
+    "lint:backend": "cd backend && .\\venv\\Scripts\\python.exe -m flake8 .",
+    "format:backend": "cd backend && .\\venv\\Scripts\\python.exe -m black . && .\\venv\\Scripts\\python.exe -m isort .",
+    "typecheck:backend": "cd backend && .\\venv\\Scripts\\python.exe -m mypy .",
+    "test:backend": "cd backend && .\\venv\\Scripts\\python.exe -m pytest",
+    "lint:all": "npm run lint:frontend && npm run lint:backend",
+    "format:all": "npm run format:backend",
+    "test:all": "npm run test:backend"
+  }
+}

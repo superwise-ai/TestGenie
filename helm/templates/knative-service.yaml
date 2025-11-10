@@ -1,0 +1,97 @@
+{{- if .Values.knative.enabled }}
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: {{ include "testgenie.fullname" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "testgenie.labels" . | nindent 4 }}
+spec:
+  template:
+    metadata:
+      annotations:
+        # Knative autoscaling annotations
+        autoscaling.knative.dev/class: {{ .Values.knative.autoscaling.class | default "kpa.autoscaling.knative.dev" | quote }}
+        autoscaling.knative.dev/min-scale: {{ .Values.knative.autoscaling.minScale | default "0" | quote }}
+        autoscaling.knative.dev/max-scale: {{ .Values.knative.autoscaling.maxScale | default "10" | quote }}
+        autoscaling.knative.dev/target: {{ .Values.knative.autoscaling.target | default "100" | quote }}
+        autoscaling.knative.dev/scale-down-delay: {{ .Values.knative.autoscaling.scaleDownDelay | default "0s" | quote }}
+        autoscaling.knative.dev/scale-to-zero-pod-retention-period: {{ .Values.knative.autoscaling.scaleToZeroPodRetentionPeriod | default "0s" | quote }}
+        autoscaling.knative.dev/window: {{ .Values.knative.autoscaling.window | default "60s" | quote }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "testgenie.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "testgenie.serviceAccountName" . }}
+      {{- if .Values.knative.containerConcurrency }}
+      containerConcurrency: {{ .Values.knative.containerConcurrency }}
+      {{- end }}
+      {{- if .Values.knative.timeoutSeconds }}
+      timeoutSeconds: {{ .Values.knative.timeoutSeconds }}
+      {{- end }}
+      containers:
+        # Frontend Container (Next.js)
+        - name: frontend
+          image: "{{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag }}"
+          imagePullPolicy: {{ .Values.frontend.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.frontend.port }}
+              protocol: TCP
+          {{- if .Values.frontend.env }}
+          env:
+            {{- toYaml .Values.frontend.env | nindent 12 }}
+          {{- end }}
+          {{- if .Values.frontend.startupProbe }}
+          startupProbe:
+            {{- toYaml .Values.frontend.startupProbe | nindent 12 }}
+          {{- end }}
+          {{- if .Values.frontend.livenessProbe }}
+          livenessProbe:
+            {{- toYaml .Values.frontend.livenessProbe | nindent 12 }}
+          {{- end }}
+          {{- if .Values.frontend.readinessProbe }}
+          readinessProbe:
+            {{- toYaml .Values.frontend.readinessProbe | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.frontend.resources | nindent 12 }}
+        # Backend Container (Python)
+        - name: backend
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.backend.port }}
+              protocol: TCP
+          {{- if .Values.backend.env }}
+          env:
+            {{- toYaml .Values.backend.env | nindent 12 }}
+          {{- end }}
+          {{- if .Values.backend.startupProbe }}
+          startupProbe:
+            {{- toYaml .Values.backend.startupProbe | nindent 12 }}
+          {{- end }}
+          {{- if .Values.backend.livenessProbe }}
+          livenessProbe:
+            {{- toYaml .Values.backend.livenessProbe | nindent 12 }}
+          {{- end }}
+          {{- if .Values.backend.readinessProbe }}
+          readinessProbe:
+            {{- toYaml .Values.backend.readinessProbe | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.backend.resources | nindent 12 }}
+          {{- if .Values.persistence.enabled }}
+          volumeMounts:
+          - name: testgenie-db
+            mountPath: /app/backend
+          {{- end }}
+      {{- if .Values.persistence.enabled }}
+      volumes:
+      - name: testgenie-db
+        persistentVolumeClaim:
+          claimName: {{ include "testgenie.fullname" . }}-db
+      {{- end }}
+{{- end }}
+

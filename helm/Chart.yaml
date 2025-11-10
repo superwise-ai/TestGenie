@@ -1,0 +1,15 @@
+apiVersion: v2
+name: testgenie
+description: A Helm chart for TestGenie application on Kubernetes with Knative
+type: application
+version: 1.0.0
+appVersion: "1.0"
+maintainers:
+  - name: Tiger Team
+keywords:
+  - testgenie
+  - nextjs
+  - python
+  - knative
+  - serverless
+

@@ -1,0 +1,23 @@
+{{- if not .Values.knative.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "testgenie.fullname" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "testgenie.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+  - port: {{ .Values.frontend.port }}
+    targetPort: http-frontend
+    protocol: TCP
+    name: http-frontend
+  - port: {{ .Values.backend.port }}
+    targetPort: http-backend
+    protocol: TCP
+    name: http-backend
+  selector:
+    {{- include "testgenie.selectorLabels" . | nindent 4 }}
+{{- end }}
+

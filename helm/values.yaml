@@ -1,0 +1,226 @@
+# Helm Values for TestGenie Application
+# TestGenie has Next.js frontend + Python backend architecture
+
+# Deployment Mode: Use standard Deployment (Knative doesn't support multi-port)
+deploymentMode: deployment
+
+# Knative Configuration (disabled for multi-container setup)
+knative:
+  enabled: false
+  autoscaling:
+    class: "kpa.autoscaling.knative.dev"
+    minScale: 0  # Scale to zero when idle
+    maxScale: 10
+    target: 100  # Concurrent requests per pod
+    scaleDownDelay: "30s"
+    scaleToZeroPodRetentionPeriod: "0s"
+    window: "60s"
+  containerConcurrency: 0
+  timeoutSeconds: 600
+
+# Namespace
+namespace: testgenie
+
+# Service Account
+serviceAccount:
+  create: false
+  name: "testgenie"
+  annotations:
+    iam.gke.io/gcp-service-account: "tiger-team-testgenie-app@tiger-team-1.iam.gserviceaccount.com"
+
+# Pod configuration
+podAnnotations: {}
+
+podSecurityContext:
+  runAsNonRoot: false
+  fsGroup: 1000
+
+securityContext:
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: false
+  allowPrivilegeEscalation: false
+
+# Frontend Container (Next.js)
+frontend:
+  image:
+    repository: us-central1-docker.pkg.dev/tiger-team-1/tiger-team/testgenie-frontend
+    pullPolicy: Always
+    tag: "latest"
+  port: 3000
+  env:
+    - name: NODE_ENV
+      value: "production"
+    - name: NEXT_PUBLIC_API_URL
+      value: "https://testgenie.sandbox.superwise.ai"  # Use full domain - ingress routes /api to backend
+    - name: NEXT_TELEMETRY_DISABLED
+      value: "1"
+    # Test User Configuration
+    - name: NEXT_PUBLIC_USER_EMAIL
+      value: "admin@superwise.ai"
+    - name: NEXT_PUBLIC_USER_INITIALS
+      value: "ADM"
+    - name: NEXT_PUBLIC_USER_FULL_NAME
+      value: "Admin"
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+  # Startup probe - allows slow initial startup
+  startupProbe:
+    httpGet:
+      path: /
+      port: 3000
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 18  # 18 * 10s = 3 minutes for Next.js startup
+  # Liveness probe - more tolerant during high load
+  livenessProbe:
+    httpGet:
+      path: /
+      port: 3000
+    initialDelaySeconds: 30
+    periodSeconds: 15  # Check every 15 seconds (increased from 10)
+    timeoutSeconds: 10  # Allow 10 seconds for response (increased from 5)
+    failureThreshold: 6  # Allow 6 failures = 90 seconds of unresponsiveness (increased from 3)
+  # Readiness probe - determines if pod can receive traffic
+  readinessProbe:
+    httpGet:
+      path: /
+      port: 3000
+    initialDelaySeconds: 10
+    periodSeconds: 10  # Check every 10 seconds (increased from 5)
+    timeoutSeconds: 5  # Allow 5 seconds for response (increased from 3)
+    failureThreshold: 3  # Mark unready after 3 failures = 30 seconds
+
+# Backend Container (Python)
+backend:
+  image:
+    repository: us-central1-docker.pkg.dev/tiger-team-1/tiger-team/testgenie-backend
+    pullPolicy: Always
+    tag: "latest"
+  port: 5000  # TestGenie backend runs on port 5000
+  env:
+    - name: PYTHONPATH
+      value: "/app"
+    - name: DATABASE_URL
+      value: "sqlite:///./testgenie.db"
+    - name: HOST
+      value: "0.0.0.0"
+    - name: GCP_PROJECT
+      value: "tiger-team-1"
+    - name: LOG_LEVEL
+      value: "INFO"  # Set to DEBUG for more verbose logging
+    # Security Configuration
+    - name: SECRET_KEY
+      valueFrom:
+        secretKeyRef:
+          name: testgenie-secrets
+          key: secret-key
+    - name: ALGORITHM
+      value: "HS256"
+    - name: ACCESS_TOKEN_EXPIRE_MINUTES
+      value: "30"
+    # CORS Configuration
+    - name: FRONTEND_URL
+      value: "https://testgenie.sandbox.superwise.ai"
+    # Superwise AI Configuration
+    - name: SUPERWISE_API_URL
+      value: "https://api.superwise.ai/v1/app-worker"
+    - name: SUPERWISE_AGENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: testgenie-secrets
+          key: superwise-agent-id
+    # Test User Configuration
+    - name: TEST_USER_EMAIL
+      value: "admin@superwise.ai"
+    - name: TEST_USER_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: testgenie-secrets
+          key: test-user-password
+    - name: TEST_USER_FULL_NAME
+      value: "Admin"
+    # Add secrets via external-secrets
+    # - name: SECRET_KEY
+    #   valueFrom:
+    #     secretKeyRef:
+    #       name: testgenie-secrets
+    #       key: secret-key
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+    requests:
+      cpu: 500m
+      memory: 1Gi
+  # Startup probe - allows slow initial startup (up to 5 minutes)
+  startupProbe:
+    httpGet:
+      path: /api/health
+      port: 5000
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 30  # 30 * 10s = 5 minutes for startup
+  # Liveness probe - more tolerant during long-running operations
+  livenessProbe:
+    httpGet:
+      path: /api/health
+      port: 5000
+    initialDelaySeconds: 30
+    periodSeconds: 15  # Check every 15 seconds (increased from 10)
+    timeoutSeconds: 10  # Allow 10 seconds for response (increased from 5)
+    failureThreshold: 6  # Allow 6 failures = 90 seconds of unresponsiveness (increased from 3)
+  # Readiness probe - determines if pod can receive traffic
+  readinessProbe:
+    httpGet:
+      path: /api/health
+      port: 5000
+    initialDelaySeconds: 10
+    periodSeconds: 10  # Check every 10 seconds (increased from 5)
+    timeoutSeconds: 5  # Allow 5 seconds for response (increased from 3)
+    failureThreshold: 3  # Mark unready after 3 failures = 30 seconds
+
+# Ingress Configuration (routes to frontend, frontend proxies to backend)
+ingress:
+  enabled: true
+  host: testgenie.sandbox.superwise.ai
+
+# Persistence Configuration (for SQLite database)
+# Disabled for demo - data resets on pod restart
+persistence:
+  enabled: false
+  storageClass: "standard-rwo"  # GKE standard persistent disk
+  size: 1Gi
+
+# Deprecated - use persistence.enabled instead
+# Volumes (shared database file - optional)
+volumes: []
+# - name: testgenie-db
+#   persistentVolumeClaim:
+#     claimName: testgenie-db-pvc
+
+# Deprecated - volumeMounts now handled automatically via persistence.enabled
+volumeMounts: []
+# - name: testgenie-db
+#   mountPath: /app/testgenie.db
+#   subPath: testgenie.db
+
+# External Secrets (for API keys, database credentials)
+externalSecrets:
+  enabled: false
+  backend: gcpSecretsManager
+  projectID: "tiger-team-1"
+  secrets: []
+  # - name: testgenie-secrets
+  #   keys:
+  #     - secretKey: secret-key
+  #       remoteRef: projects/tiger-team-1/secrets/testgenie-secret-key/versions/latest
+
