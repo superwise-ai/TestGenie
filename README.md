@@ -15,7 +15,7 @@
 
 ##  📊 TestGenie - Test Management Platform
 
-**TestGenie** is an enterprise-ready test management platform designed to streamline software testing workflows and enhance quality assurance operations. Built on modern technologies (Next.js 15, TypeScript, FastAPI), the platform offers comprehensive test management capabilities with AI-powered assistance to accelerate test creation and optimization.
+**TestGenie** is an enterprise-ready test management platform designed to streamline software testing workflows and enhance quality assurance operations. This system offers comprehensive test management capabilities with AI-powered assistance to accelerate test creation and optimization.
 
 ### Key Value Propositions
 
